@@ -1,12 +1,18 @@
-# news-image-20261126
+# The World Today — 26 November 2026
 
 [![make.fun · news-image-20261126](https://make.fun/badge/news-image-20261126.svg)](https://make.fun/bounty/news-image-20261126?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261126)
 [![rank](https://make.fun/badge/news-image-20261126/akhmadfitriyanramadhan23-wq/news-image-20261126/rank.svg)](https://make.fun/bounty/news-image-20261126/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261126)
 [![reward](https://make.fun/badge/news-image-20261126/akhmadfitriyanramadhan23-wq/news-image-20261126/reward.svg)](https://make.fun/bounty/news-image-20261126?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261126)
 
-Sum up 26 November's world news in one image: your program writes one image of the day's news, an AI judge compares the images two at a time, and the 50 best win rates share $100: $20 for 1st place, $12 for 2nd, $6 for 3rd, $2 each for 4th to 10th and $1.20 each for 11th to 50th.
+Entry for the make.fun bounty "Sum up 26 November's world news in one image" ($100 across the top 50: $20 / $12 / $6 for the first three, $2 for 4th–10th, $1.20 for 11th–50th). An AI judge compares the images two at a time.
 
-**The World Today** — a one-page newspaper front page for Thursday 26 November 2026: 35 stories, all first reported on 26 November (3 leads, 10 secondary, 22 briefs), a timeline, Wednesday's market closes, a numbered world map, and a DATE CHECK box that names the big 24–25 November stories other round-ups wrongly present as today's news. The image is rendered procedurally with PIL (deterministic, fixed seed) and copied to `/output/entry.png` by `main.ts`.
+## What it is
+
+`entry.png` is a one-page newspaper front page for Thursday 26 November 2026 — 35 stories, each first reported that day. The Taipei 15% tariff confirmation, the Thanksgiving storm on the US East Coast, and the MoD's letters to about 100,000 British veterans lead the page, with a timeline, Wednesday's market closes, a numbered world map, and a DATE CHECK box that keeps the big 24–25 November stories out of the 26th.
+
+## How it is made
+
+`tools/make-image.py` draws the page procedurally with PIL (deterministic, fixed seed, no network). `main.ts` copies the finished PNG to the output directory.
 
 ## Run it
 

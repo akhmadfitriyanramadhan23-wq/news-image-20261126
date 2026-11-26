@@ -1,19 +1,17 @@
 // The World Today — 26 November 2026.
-// Copies the pre-rendered front page into the grader's output directory.
-// The image is rendered by tools/make-image.py (deterministic PIL, fixed
-// seed); this entrypoint only copies it, so both grader runs are identical.
-// Output: /output/entry.png (1024x1024 PNG, < 1 MiB), per the kit spec.
-import { copyFileSync, existsSync, mkdirSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+// Entry point: places the pre-rendered front page where the grader looks.
+// The page itself is produced by tools/make-image.py (PIL, fixed seed);
+// this file only moves the bytes, so repeated runs stay identical.
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
-mkdirSync(outDir, { recursive: true });
-const src = join(here, "entry.png");
-if (!existsSync(src)) {
-  throw new Error("entry.png missing: run tools/make-image.py first");
+const targetDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+const sourcePath = new URL("./entry.png", import.meta.url).pathname;
+const pixels = readFileSync(sourcePath);
+if (pixels.length === 0) {
+  throw new Error("entry.png is empty: run tools/make-image.py first");
 }
-const dest = join(outDir, "entry.png");
-copyFileSync(src, dest);
-console.log("wrote", dest, `(${statSync(dest).size} bytes)`);
+mkdirSync(targetDir, { recursive: true });
+const destination = join(targetDir, "entry.png");
+writeFileSync(destination, pixels);
+console.log(`front page -> ${destination} (${pixels.length} bytes)`);
