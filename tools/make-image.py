@@ -1,324 +1,97 @@
 #!/usr/bin/env python3
-"""THE WORLD TODAY - front page for Thursday 26 November 2026.
-Deterministic: fixed seed, no timestamps, no network. PIL only.
-Writes entry.png (1024x1024) next to this script's parent dir.
-Structure (playbook): 3 leads + 10 secondary + 22 briefs = 35 stories,
-timeline, markets strip, numbered world map, DATE CHECK box.
-All 35 stories first reported on 26 Nov 2026; see NEWS.md for sources
-and the excluded 24-25 Nov stories.
+"""The World Today — front page for Thursday 26 November 2026.
+
+One 1024x1024 PNG newspaper page carrying 35 stories, every one of
+them first reported on 26 November 2026: three leads, ten more stories,
+twenty-two briefs, plus a timeline, Wednesday's market closes, a
+numbered world map and a DATE CHECK box naming the big 24–25 November
+stories that other round-ups wrongly present as today's news.
+
+PIL only. Deterministic: a fixed seed drives the few random details,
+and nothing reads the clock or the network. Run it with
+`python3 tools/make-image.py` — it writes ../entry.png.
+See NEWS.md (kept out of the repository) for the sources.
 """
 import random
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-HERE = Path(__file__).resolve().parent
-OUT = HERE.parent / "entry.png"
+BASE = Path(__file__).resolve().parent.parent
+OUTFILE = BASE / "entry.png"
 
-W, H = 1024, 1024
-MARGIN = 32
-CW = W - 2 * MARGIN  # 960
+SHEET_W, SHEET_H = 1024, 1024
+SIDE = 32
+BODY_W = SHEET_W - 2 * SIDE
+HALF_W = (BODY_W - 24) // 2
 
-PAPER = (247, 242, 231)
-INK = (17, 17, 17)
-RED = (158, 27, 27)
-GREY = (85, 85, 85)
-LIGHT_GREY = (120, 115, 105)
-NAVY = (28, 42, 68)
-SKY = (222, 232, 238)
-LAND = (168, 178, 150)
+CREAM = (247, 242, 231)
+BLACK = (17, 17, 17)
+CRIMSON = (158, 27, 27)
+SLATE = (85, 85, 85)
+OCEAN = (222, 232, 238)
+FIELD = (168, 178, 150)
+STORMBLUE = (38, 52, 74)
 
 SERIF_B = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
-SERIF = "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"
+SERIF_R = "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"
 SANS_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-SANS = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+SANS_R = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
-RNG = random.Random(20261126)
-
-
-def font(path, size):
-    return ImageFont.truetype(path, size)
+_rng = random.Random(20261126)
+_cache = {}
 
 
-def wrap(text, fnt, max_w):
-    words = text.split()
-    lines, cur = [], ""
-    for w in words:
-        t = (cur + " " + w).strip() if cur else w
-        if fnt.getlength(t) <= max_w:
-            cur = t
+def face(kind, size):
+    """Load (and cache) a TrueType face at the requested size."""
+    key = (kind, size)
+    if key not in _cache:
+        _cache[key] = ImageFont.truetype(kind, size)
+    return _cache[key]
+
+
+def flow_lines(text, fnt, width):
+    """Break text into lines that fit `width` under font `fnt`."""
+    out, current = [], ""
+    for word in text.split():
+        trial = f"{current} {word}".strip()
+        if fnt.getlength(trial) <= width:
+            current = trial
         else:
-            if cur:
-                lines.append(cur)
-            cur = w
-    if cur:
-        lines.append(cur)
-    return lines
+            out.append(current)
+            current = word
+    if current:
+        out.append(current)
+    return out
 
 
-def fit_font(path, text, max_size, max_w, min_size=10):
-    size = max_size
-    while size > min_size:
-        f = font(path, size)
-        if f.getlength(text) <= max_w:
-            return f
-        size -= 1
-    return font(path, min_size)
-
-
-def draw_centered(d, y, text, fnt, fill=INK):
-    d.text((W / 2, y), text, font=fnt, fill=fill, anchor="ma")
-
-
-def draw_wrapped(d, x, y, text, fnt, max_w, fill=INK, leading=None):
-    if leading is None:
-        leading = int(fnt.size * 1.28)
-    for line in wrap(text, fnt, max_w):
-        d.text((x, y), line, font=fnt, fill=fill)
-        y += leading
-    return y
-
-
-def rule(d, y, x0, x1, width=2, fill=INK):
-    d.line([(x0, y), (x1, y)], fill=fill, width=width)
-
-
-img = Image.new("RGB", (W, H), PAPER)
-d = ImageDraw.Draw(img)
-
-d.rectangle([10, 10, W - 11, H - 11], outline=INK, width=1)
-d.rectangle([15, 15, W - 16, H - 16], outline=INK, width=1)
-
-y = 18
-
-# ---------------------------------------------------------------- masthead
-mast_f = fit_font(SERIF_B, "THE WORLD TODAY", 52, CW)
-draw_centered(d, y, "THE WORLD TODAY", mast_f)
-y += int(mast_f.size * 1.02)
-
-date_f = font(SANS_B, 18)
-draw_centered(d, y, "THURSDAY,  26  NOVEMBER  2026", date_f)
-y += 24
-
-tag_f = font(SANS, 11)
-draw_centered(d, y, "THE DAY'S WORLD NEWS  —  IN ONE PAGE  •  35 STORIES, ALL FIRST REPORTED TODAY",
-              tag_f, fill=GREY)
-y += 16
-
-rule(d, y, MARGIN, W - MARGIN, width=3, fill=RED)
-y += 4
-rule(d, y, MARGIN, W - MARGIN, width=1)
-y += 6
-
-# ---------------------------------------------------------------- timeline strip (single line)
-tl_f = font(SANS, 11)
-tl_lab = font(SANS_B, 11)
-d.text((MARGIN, y), "THE DAY IN TIME (WIB) — ", font=tl_lab, fill=RED)
-x0 = MARGIN + tl_lab.getlength("THE DAY IN TIME (WIB) — ")
-tl = ("07:00 MoD letters to 100,000 veterans  •  07:30 Taipei confirms 15% tariff  •  "
-      "08:15 Storm lashes East Coast  •  21:00 Chess Game 3 in Geneva")
-d.text((x0, y), tl, font=tl_f, fill=INK)
-y += 17
-rule(d, y, MARGIN, W - MARGIN, width=1)
-y += 6
-
-# ---------------------------------------------------------------- LEAD 1: Taiwan tariffs
-d.text((MARGIN, y), "TRADE  •  LEAD STORY", font=font(SANS_B, 12), fill=RED)
-y += 15
-lead_f = font(SERIF_B, 28)
-d.text((MARGIN, y), "TAIPEI: 15% IS THE FLOOR", font=lead_f, fill=INK)
-y += 31
-deck_f = font(SERIF, 15)
-deck = ("Taiwan confirms the US tariff rate for the island is 15% — the lowest tier, "
-        "with Japan, South Korea, the EU and Switzerland. It rises to 25% if talks fail.")
-y = draw_wrapped(d, MARGIN, y, deck, deck_f, CW, leading=18)
-y += 3
-
-# --- illustration: proposed tariff bars (USTR, 14 economies)
-bar_x0, bar_y0 = MARGIN, y
-bar_x1, bar_y1 = W - MARGIN, y + 46
-d.rectangle([bar_x0, bar_y0, bar_x1, bar_y1], fill=(232, 226, 210), outline=INK, width=1)
-bars = [("TAIWAN  15%", 15), ("JAPAN  15%", 15), ("S. KOREA  15%", 15),
-        ("EU  15%", 15), ("CHINA  up to 20%", 20), ("IF TALKS FAIL  25%", 25)]
-bw = (bar_x1 - bar_x0 - 24) // 6
-for i, (lab, pct) in enumerate(bars):
-    bx = bar_x0 + 12 + i * bw
-    bh = int(26 * pct / 25)
-    d.text((bx + (bw - 10) // 2, bar_y0 + 3), lab.split("  ")[0], font=font(SANS, 8),
-           fill=GREY, anchor="ma")
-    d.rectangle([bx, bar_y1 - 5 - bh, bx + bw - 10, bar_y1 - 5], fill=RED)
-    d.text((bx + (bw - 10) // 2, bar_y1 - 5 - bh + 2), f"{pct}%", font=font(SANS_B, 9),
-           fill=(255, 255, 255), anchor="ma")
-y = bar_y1 + 3
-d.text((MARGIN, y), "USTR Section 301 proposals: 15% for five economies; China capped at 20%. Taipei confirms its rate at 08:30 today.",
-       font=font(SANS, 10), fill=GREY)
-y += 13
-rule(d, y, MARGIN, W - MARGIN, width=1)
-y += 6
-
-# ---------------------------------------------------------------- LEADS 2 & 3 (two columns)
-col_w = (CW - 24) // 2
-col2_x = MARGIN + col_w + 24
-lead23_y0 = y
-
-def mini_storm(d, x0, y0, w, h):
-    """Storm sky, slanted rain, a grounded parade balloon."""
-    d.rectangle([x0, y0, x0 + w, y0 + h], fill=(38, 52, 74), outline=INK, width=1)
-    d.ellipse([x0 + 12, y0 + 5, x0 + 90, y0 + 26], fill=(90, 100, 120))
-    d.ellipse([x0 + 60, y0 + 2, x0 + 140, y0 + 22], fill=(110, 120, 140))
-    for i in range(14):
-        rx = x0 + 10 + i * 30 + RNG.randint(-4, 4)
-        ry = y0 + 24 + RNG.randint(0, 2)
-        d.line([(rx, ry), (rx - 6, ry + 7)], fill=(170, 190, 220), width=2)
-    bx, by = x0 + w - 78, y0 + h - 24
-    d.ellipse([bx - 34, by - 12, bx + 34, by + 6], fill=(200, 60, 60), outline=(255, 255, 255), width=1)
-    d.line([(bx - 20, by + 4), (bx - 30, y0 + h - 12)], fill=(220, 220, 220), width=1)
-    d.line([(bx + 20, by + 4), (bx + 30, y0 + h - 12)], fill=(220, 220, 220), width=1)
-    d.rectangle([x0, y0 + h - 12, x0 + w, y0 + h], fill=(255, 230, 150))
-    d.text((x0 + 8, y0 + h - 11), "PARADE MOVED TO SATURDAY", font=font(SANS_B, 9),
-           fill=(38, 52, 74))
-
-
-def mini_letter(d, x0, y0, w, h):
-    """MoD letter: envelope, red seal, '100,000'."""
-    d.rectangle([x0, y0, x0 + w, y0 + h], fill=(232, 226, 210), outline=INK, width=1)
-    ex0, ey0 = x0 + 14, y0 + 14
-    ex1, ey1 = x0 + w - 14, y0 + h - 4
-    d.rectangle([ex0, ey0, ex1, ey1], fill=(250, 246, 236), outline=INK, width=1)
-    d.line([(ex0, ey0), ((ex0 + ex1) // 2, (ey0 + ey1) // 2)], fill=GREY, width=1)
-    d.line([(ex1, ey0), ((ex0 + ex1) // 2, (ey0 + ey1) // 2)], fill=GREY, width=1)
-    cx, cy = (ex0 + ex1) // 2, (ey0 + ey1) // 2
-    d.ellipse([cx - 11, cy - 11, cx + 11, cy + 11], fill=RED, outline=(120, 20, 20), width=1)
-    d.text((cx, cy - 6), "M", font=font(SERIF_B, 11), fill=(255, 255, 255), anchor="ma")
-    for i, c in enumerate([(158, 27, 27), (255, 255, 255), (28, 42, 68)]):
-        d.rectangle([x0 + w - 34 + i * 8, y0 + 4, x0 + w - 28 + i * 8, y0 + 12], fill=c)
-    d.text((x0 + 8, y0 + 3), "100,000 LETTERS", font=font(SANS_B, 10), fill=RED)
-
-
-# --- Lead 2: Thanksgiving storm
-d.text((MARGIN, lead23_y0), "WEATHER  •  USA", font=font(SANS_B, 12), fill=RED)
-hf = font(SERIF_B, 21)
-d.text((MARGIN, lead23_y0 + 15), "THANKSGIVING STORM", font=hf, fill=INK)
-d.text((MARGIN, lead23_y0 + 38), "BATTERS EAST COAST", font=hf, fill=INK)
-y2 = draw_wrapped(d, MARGIN, lead23_y0 + 62,
-                  "Gusts of 50–60 mph in New York; 70 million under wind "
-                  "alerts; rain and floods from Wilmington to Boston.",
-                  font(SANS, 12), col_w, leading=14)
-mini_storm(d, MARGIN, y2 + 3, col_w, 44)
-lead2_bot = y2 + 3 + 44
-
-# --- Lead 3: UK MoD letters
-d.text((col2_x, lead23_y0), "DEFENCE  •  BRITAIN", font=font(SANS_B, 12), fill=RED)
-d.text((col2_x, lead23_y0 + 15), "BRITAIN CALLS UP", font=hf, fill=INK)
-d.text((col2_x, lead23_y0 + 38), "ITS VETERANS", font=hf, fill=INK)
-y3 = draw_wrapped(d, col2_x, lead23_y0 + 62,
-                  "MoD writes to about 100,000 reservists as Russia "
-                  "tensions rise. Kushner: Europe has no Ukraine plan.",
-                  font(SANS, 12), col_w, leading=14)
-mini_letter(d, col2_x, y3 + 3, col_w, 44)
-lead3_bot = y3 + 3 + 44
-
-y = max(lead2_bot, lead3_bot) + 5
-rule(d, y, MARGIN, W - MARGIN, width=1)
-y += 5
-
-# ---------------------------------------------------------------- markets strip
-d.text((MARGIN, y), "THE MARKETS — WEDNESDAY'S CLOSE, IN THURSDAY'S WRAPS",
-       font=font(SANS_B, 13), fill=INK)
-y += 16
-mk = [("DOW", "50,182.95  +0.33%"), ("S&P 500", "7,182.78  −0.25%"),
-      ("NASDAQ", "23,585.80  −0.62%"), ("BRENT", "$94.61  +3.5%"),
-      ("WTI", "$83.68  +2.0%"), ("GOLD", "$3,484  −2%"),
-      ("NVIDIA", "−3.9%  $149.30"), ("VIX", "28.29")]
-seg_w = CW // 4
-for i, (k, v) in enumerate(mk):
-    cx = MARGIN + (i % 4) * seg_w
-    cy = y + (i // 4) * 16
-    kf = font(SANS_B, 12)
-    d.text((cx, cy), f"{k} ", font=kf, fill=RED)
-    d.text((cx + kf.getlength(f"{k} "), cy), v, font=font(SANS, 12), fill=INK)
-y += 34
-d.text((MARGIN, y),
-       "Dow erased a 1,100-point fall; Nasdaq was −4.6% at its worst. Q3 GDP +4.3%; core PCE +0.3%. US markets shut today.",
-       font=font(SANS, 11), fill=GREY)
-y += 13
-rule(d, y, MARGIN, W - MARGIN, width=1)
-y += 5
-
-# ---------------------------------------------------------------- secondary 10 (numbered 4–13)
-d.text((MARGIN, y), "THE REST OF THE DAY — IN BRIEF", font=font(SANS_B, 14), fill=INK)
-y += 18
-sec = [
-    ("4", "Kushner: Europe has no convincing plan for peace in Ukraine."),
-    ("5", "Gordon Ramsay named new Top Gear host."),
-    ("6", "Nurses demand protection from trans law; RCN campaign."),
-    ("7", "Chess Game 3 today in Geneva; scores level 1–1."),
-    ("8", "SWS: 9.8m Filipino families rate themselves poor in Q3."),
-    ("9", "Duterte ICC trial: prosecutors plan 100 witnesses."),
-    ("10", "Senate cuts P19.8B aid to boost PhilHealth."),
-    ("11", "Anthropic shares fall below IPO price."),
-    ("12", "VP Sara Duterte challenges court ruling on arrest."),
-    ("13", "King Felipe VI eyes Philippines visit; coast guard +3 ships."),
+# ------------------------------------------------------------------ content
+TIMELINE = [
+    ("07:00", "MoD letters to 100,000 veterans"),
+    ("07:30", "Taipei confirms 15% tariff"),
+    ("08:15", "Storm lashes East Coast"),
+    ("21:00", "Chess Game 3 in Geneva"),
 ]
-sec_row_h = 19
-for i, (num, text) in enumerate(sec):
-    sx = MARGIN + (i % 2) * (col_w + 24)
-    sy = y + (i // 2) * sec_row_h
-    nf = font(SANS_B, 13)
-    d.text((sx, sy), num, font=nf, fill=RED)
-    nw = nf.getlength(num + "  ")
-    draw_wrapped(d, sx + nw, sy, text, font(SANS, 12), col_w - nw, leading=14)
-y += 5 * sec_row_h + 1
-rule(d, y, MARGIN, W - MARGIN, width=1)
-y += 5
 
-# ---------------------------------------------------------------- world map (numbered pins)
-d.text((MARGIN, y), "WHERE IT HAPPENED", font=font(SANS_B, 14), fill=INK)
-y += 17
-map_x0, map_y0 = MARGIN, y
-map_x1, map_y1 = W - MARGIN, y + 62
-d.rectangle([map_x0, map_y0, map_x1, map_y1], fill=SKY, outline=INK, width=1)
-mw, mh = map_x1 - map_x0, map_y1 - map_y0
-OX, OY = map_x0, map_y0
-YS = mh / 76.0  # continents drawn in a 960x76 reference box
-def P(pts):
-    return [(OX + x, OY + y * YS) for x, y in pts]
-d.polygon(P([(60, 12), (130, 6), (200, 12), (240, 20), (285, 24), (278, 36),
-           (240, 40), (165, 40), (130, 46), (82, 36), (52, 24)]), fill=LAND)  # N America
-d.polygon(P([(270, 44), (310, 40), (350, 48), (360, 60), (330, 70), (290, 66), (262, 54)]), fill=LAND)  # S America
-d.polygon(P([(448, 10), (500, 6), (534, 14), (526, 26), (482, 28), (448, 20)]), fill=LAND)  # Europe
-d.polygon(P([(464, 32), (516, 28), (542, 40), (530, 58), (494, 60), (470, 46)]), fill=LAND)  # Africa
-d.polygon(P([(550, 8), (654, 4), (756, 10), (824, 18), (842, 28), (792, 34),
-           (722, 38), (654, 34), (584, 30), (546, 20)]), fill=LAND)  # Asia
-d.polygon(P([(756, 56), (816, 52), (834, 62), (800, 68), (760, 64)]), fill=LAND)  # Australia
-for gx in range(map_x0 + 80, map_x1, 80):
-    d.line([(gx, map_y0), (gx, map_y1)], fill=(200, 212, 220), width=1)
-for gy in range(map_y0 + 21, map_y1, 21):
-    d.line([(map_x0, gy), (map_x1, gy)], fill=(200, 212, 220), width=1)
-pins = [
-    ("1", "TAIPEI", 776, 26), ("2", "NEW YORK", 288, 16),
-    ("3", "LONDON", 462, 14), ("4", "GENEVA", 496, 28),
-    ("5", "MANILA", 800, 40), ("6", "NEW DELHI", 648, 30),
-    ("7", "WASHINGTON", 262, 36),
+TARIFFS = [
+    ("Taiwan", 15), ("Japan", 15), ("South Korea", 15),
+    ("EU", 15), ("China", 20), ("If talks fail", 25),
 ]
-for num, lab, px, py in pins:
-    py = py * YS
-    d.ellipse([map_x0 + px - 9, map_y0 + py - 9, map_x0 + px + 9, map_y0 + py + 9],
-              fill=RED, outline=(255, 255, 255), width=2)
-    tf = font(SANS_B, 10)
-    tw = tf.getlength(num)
-    d.text((map_x0 + px - tw / 2, map_y0 + py - 6), num, font=tf, fill=(255, 255, 255))
-y = map_y1 + 3
-key = ("1 TAIPEI   2 NEW YORK   3 LONDON   4 GENEVA   5 MANILA   6 NEW DELHI   7 WASHINGTON")
-d.text((MARGIN, y), key, font=font(SANS, 11), fill=GREY)
-y += 12
-rule(d, y, MARGIN, W - MARGIN, width=1)
-y += 5
 
-# ---------------------------------------------------------------- briefs 22: ALSO ON 26 NOVEMBER
-d.text((MARGIN, y), "ALSO ON 26 NOVEMBER", font=font(SANS_B, 14), fill=INK)
-y += 16
-briefs = [
+SECONDARY = [
+    "Kushner: Europe has no convincing plan for peace in Ukraine.",
+    "Gordon Ramsay named new Top Gear host.",
+    "Nurses demand protection from trans law; RCN campaign.",
+    "Chess Game 3 today in Geneva; scores level 1–1.",
+    "SWS: 9.8m Filipino families rate themselves poor in Q3.",
+    "Duterte ICC trial: prosecutors plan 100 witnesses.",
+    "Senate cuts P19.8B aid to boost PhilHealth.",
+    "Anthropic shares fall below IPO price.",
+    "VP Sara Duterte challenges court ruling on arrest.",
+    "King Felipe VI eyes Philippines visit; coast guard +3 ships.",
+]
+
+BRIEFS = [
     "UN warns HIV infections could rise after funding cuts",
     "M5.1 quake hits Antique, Philippines",
     "India marks Constitution Day and National Milk Day",
@@ -342,25 +115,8 @@ briefs = [
     "Cebu City sets Christmas caroling hours",
     "Taiwan: DPP's He Xinchun campaigns with Tsai and Lai",
 ]
-bf = font(SANS, 11)
-row_h = 12
-for i, text in enumerate(briefs):
-    bx = MARGIN + (i % 2) * (col_w + 24)
-    by = y + (i // 2) * row_h
-    d.text((bx, by), "▪", font=bf, fill=RED)
-    d.text((bx + 12, by), text, font=bf, fill=INK)
-y += 11 * row_h + 1
-rule(d, y, MARGIN, W - MARGIN, width=1)
-y += 5
 
-# ---------------------------------------------------------------- DATE CHECK box (8 items, 4 rows)
-box_y0 = y
-box_h = 78
-d.rectangle([MARGIN, box_y0, W - MARGIN, box_y0 + box_h], fill=(238, 230, 214),
-            outline=RED, width=2)
-d.text((MARGIN + 10, box_y0 + 5), "DATE CHECK — BIG STORIES THAT ARE NOT 26 NOVEMBER",
-       font=font(SANS_B, 12), fill=RED)
-dc = [
+DATECHECK = [
     "USTR unveils 14-economy tariffs — 25 Nov",
     "Houthi claim on Ras Tanura; Brent $94.61 — 25 Nov",
     "Sudan: RSF drones kill 19 in Blue Nile — 24–25 Nov",
@@ -370,22 +126,331 @@ dc = [
     "Ramaphosa wins Phala Phala case — 25 Nov",
     "Shenzhou-24; first Pakistani in orbit — 25 Nov",
 ]
-dcf = font(SANS, 11)
-for i, text in enumerate(dc):
-    bx = MARGIN + 10 + (i % 2) * ((CW - 20) // 2)
-    by = box_y0 + 22 + (i // 2) * 12
-    d.text((bx, by), "✕  " + text, font=dcf, fill=INK)
-y = box_y0 + box_h + 3
-rule(d, y, MARGIN, W - MARGIN, width=1)
-y += 4
 
-# ---------------------------------------------------------------- footer
-foot_f = font(SANS_B, 11)
-draw_centered(d, y, "THE WORLD TODAY  •  THURSDAY 26 NOVEMBER 2026  •  SOURCES: REUTERS, AP, BBC, TELEGRAPH, CHESS.COM",
-              foot_f, fill=GREY)
-y += 13
-print("final y:", y, "canvas H:", H)
-assert y <= H - 14, f"overflow: y={y} > {H}"
+MARKETS = [
+    ("DOW", "50,182.95 +0.33%"),
+    ("S&P 500", "7,182.78 −0.25%"),
+    ("NASDAQ", "23,585.80 −0.62%"),
+    ("BRENT", "$94.61 +3.5%"),
+    ("WTI", "$83.68 +2.0%"),
+    ("GOLD", "$3,484 −2%"),
+    ("NVIDIA", "−3.9% $149.30"),
+    ("VIX", "28.29"),
+]
 
-img.save(OUT, format="PNG", optimize=True)
-print("saved", OUT, img.size)
+PINS = [
+    {"n": "1", "place": "TAIPEI", "x": 780, "y": 24},
+    {"n": "2", "place": "NEW YORK", "x": 288, "y": 18},
+    {"n": "3", "place": "LONDON", "x": 460, "y": 13},
+    {"n": "4", "place": "GENEVA", "x": 498, "y": 27},
+    {"n": "5", "place": "MANILA", "x": 802, "y": 38},
+    {"n": "6", "place": "NEW DELHI", "x": 650, "y": 28},
+    {"n": "7", "place": "WASHINGTON", "x": 262, "y": 32},
+]
+
+
+# ------------------------------------------------------------------ the sheet
+class Sheet:
+    def __init__(self):
+        self.canvas = Image.new("RGB", (SHEET_W, SHEET_H), CREAM)
+        self.pen = ImageDraw.Draw(self.canvas)
+        self.y = 18
+        self.pen.rectangle([10, 10, SHEET_W - 11, SHEET_H - 11],
+                           outline=BLACK, width=1)
+        self.pen.rectangle([15, 15, SHEET_W - 16, SHEET_H - 16],
+                           outline=BLACK, width=1)
+
+    def gap(self, px):
+        self.y += px
+
+    def hline(self, weight=1, colour=BLACK):
+        self.pen.line([(SIDE, self.y), (SHEET_W - SIDE, self.y)],
+                      fill=colour, width=weight)
+
+    def centred(self, text, kind, size, colour=BLACK):
+        f = face(kind, size)
+        x = (SHEET_W - self.pen.textlength(text, font=f)) / 2
+        self.pen.text((x, self.y), text, font=f, fill=colour)
+        self.y += int(size * 1.05)
+
+    def paragraph(self, text, kind, size, width, x=SIDE, colour=BLACK,
+                  leading=None):
+        f = face(kind, size)
+        step = leading if leading is not None else int(size * 1.3)
+        for ln in flow_lines(text, f, width):
+            self.pen.text((x, self.y), ln, font=f, fill=colour)
+            self.y += step
+
+    def kicker(self, text, size=12):
+        self.pen.text((SIDE, self.y), text, font=face(SANS_B, size),
+                      fill=CRIMSON)
+        self.y += size + 3
+
+
+def draw_tariff_chart(sheet, top, height):
+    """Horizontal bars for the USTR Section 301 proposals."""
+    pen = sheet.pen
+    x0, x1 = SIDE, SHEET_W - SIDE
+    pen.rectangle([x0, top, x1, top + height], fill=(232, 226, 210),
+                  outline=BLACK, width=1)
+    slot = (x1 - x0 - 24) // len(TARIFFS)
+    for i, (name, pct) in enumerate(TARIFFS):
+        bx = x0 + 12 + i * slot
+        bar_h = int(26 * pct / 25)
+        label = name.upper()
+        lf = face(SANS_R, 8)
+        lx = bx + (slot - 10) / 2 - pen.textlength(label, font=lf) / 2
+        pen.text((lx, top + 3), label, font=lf, fill=SLATE)
+        pen.rectangle([bx, top + height - 5 - bar_h, bx + slot - 10,
+                       top + height - 5], fill=CRIMSON)
+        vf = face(SANS_B, 9)
+        val = f"{pct}%"
+        vx = bx + (slot - 10) / 2 - pen.textlength(val, font=vf) / 2
+        pen.text((vx, top + height - 5 - bar_h + 2), val, font=vf,
+                 fill=(255, 255, 255))
+
+
+def draw_storm_panel(pen, x0, y0, w, h):
+    """Storm sky, slanted rain and a grounded parade balloon."""
+    pen.rectangle([x0, y0, x0 + w, y0 + h], fill=STORMBLUE,
+                  outline=BLACK, width=1)
+    pen.ellipse([x0 + 12, y0 + 5, x0 + 90, y0 + 26], fill=(90, 100, 120))
+    pen.ellipse([x0 + 60, y0 + 2, x0 + 140, y0 + 22], fill=(110, 120, 140))
+    for i in range(14):
+        rx = x0 + 10 + i * 30 + _rng.randint(-4, 4)
+        ry = y0 + 24 + _rng.randint(0, 2)
+        pen.line([(rx, ry), (rx - 6, ry + 7)], fill=(170, 190, 220), width=2)
+    bx, by = x0 + w - 78, y0 + h - 24
+    pen.ellipse([bx - 34, by - 12, bx + 34, by + 6], fill=(200, 60, 60),
+                outline=(255, 255, 255), width=1)
+    pen.line([(bx - 20, by + 4), (bx - 30, y0 + h - 12)],
+             fill=(220, 220, 220), width=1)
+    pen.line([(bx + 20, by + 4), (bx + 30, y0 + h - 12)],
+             fill=(220, 220, 220), width=1)
+    pen.rectangle([x0, y0 + h - 12, x0 + w, y0 + h], fill=(255, 230, 150))
+    pen.text((x0 + 8, y0 + h - 11), "PARADE MOVED TO SATURDAY",
+             font=face(SANS_B, 9), fill=STORMBLUE)
+
+
+def draw_letter_panel(pen, x0, y0, w, h):
+    """An MoD envelope with a red wax seal."""
+    pen.rectangle([x0, y0, x0 + w, y0 + h], fill=(232, 226, 210),
+                  outline=BLACK, width=1)
+    ex0, ey0 = x0 + 14, y0 + 14
+    ex1, ey1 = x0 + w - 14, y0 + h - 4
+    pen.rectangle([ex0, ey0, ex1, ey1], fill=(250, 246, 236),
+                  outline=BLACK, width=1)
+    cx, cy = (ex0 + ex1) // 2, (ey0 + ey1) // 2
+    pen.polygon([(ex0, ey0), (ex1, ey0), (cx, cy)], outline=SLATE)
+    pen.ellipse([cx - 11, cy - 11, cx + 11, cy + 11], fill=CRIMSON,
+                outline=(120, 20, 20), width=1)
+    mf = face(SERIF_B, 11)
+    pen.text((cx - pen.textlength("M", font=mf) / 2, cy - 6), "M",
+             font=mf, fill=(255, 255, 255))
+    for i, c in enumerate([(158, 27, 27), (255, 255, 255), (28, 42, 68)]):
+        pen.rectangle([x0 + w - 34 + i * 8, y0 + 4,
+                       x0 + w - 28 + i * 8, y0 + 12], fill=c)
+    pen.text((x0 + 8, y0 + 3), "100,000 LETTERS", font=face(SANS_B, 10),
+             fill=CRIMSON)
+
+
+def lead_column(sheet, x, kicker_text, heads, deck, panel):
+    """One of the two second-lead columns; returns its bottom y."""
+    pen = sheet.pen
+    top = sheet.y
+    pen.text((x, top), kicker_text, font=face(SANS_B, 12), fill=CRIMSON)
+    hf = face(SERIF_B, 21)
+    for j, hd in enumerate(heads):
+        pen.text((x, top + 15 + j * 23), hd, font=hf, fill=BLACK)
+    f = face(SANS_R, 12)
+    yy = top + 62
+    for ln in flow_lines(deck, f, HALF_W):
+        pen.text((x, yy), ln, font=f, fill=BLACK)
+        yy += 14
+    panel(pen, x, yy + 3, HALF_W, 44)
+    return yy + 3 + 44
+
+
+def build():
+    s = Sheet()
+    pen = s.pen
+
+    # ---------------------------------------------------------- masthead
+    s.centred("THE WORLD TODAY", SERIF_B, 52)
+    s.centred("THURSDAY,  26  NOVEMBER  2026", SANS_B, 18)
+    s.gap(6)
+    s.centred("THE DAY'S WORLD NEWS — ONE PAGE  •  35 STORIES, EACH FIRST REPORTED TODAY",
+              SANS_R, 11, SLATE)
+    s.gap(5)
+    s.hline(3, CRIMSON)
+    s.gap(4)
+    s.hline(1)
+    s.gap(6)
+
+    # ---------------------------------------------------------- timeline
+    lab = "THE DAY IN TIME (WIB) — "
+    lf = face(SANS_B, 11)
+    pen.text((SIDE, s.y), lab, font=lf, fill=CRIMSON)
+    tx = SIDE + pen.textlength(lab, font=lf)
+    bits = "  •  ".join(f"{t} {what}" for t, what in TIMELINE)
+    pen.text((tx, s.y), bits, font=face(SANS_R, 11), fill=BLACK)
+    s.gap(17)
+    s.hline(1)
+    s.gap(6)
+
+    # ---------------------------------------------------------- lead 1
+    s.kicker("TRADE  •  LEAD STORY")
+    pen.text((SIDE, s.y), "TAIPEI: 15% IS THE FLOOR",
+             font=face(SERIF_B, 28), fill=BLACK)
+    s.gap(31)
+    s.paragraph(
+        "Taiwan confirms the US tariff rate for the island is 15% — the lowest tier, "
+        "with Japan, South Korea, the EU and Switzerland. It rises to 25% if talks fail.",
+        SERIF_R, 15, BODY_W, leading=18)
+    s.gap(3)
+    draw_tariff_chart(s, s.y, 46)
+    s.gap(49)
+    pen.text((SIDE, s.y),
+             "USTR Section 301 proposals: 15% for five economies; China capped at 20%. Taipei confirms its rate at 08:30 today.",
+             font=face(SANS_R, 10), fill=SLATE)
+    s.gap(13)
+    s.hline(1)
+    s.gap(6)
+
+    # ---------------------------------------------------------- leads 2 & 3
+    col2 = SIDE + HALF_W + 24
+    bottom = max(
+        lead_column(s, SIDE, "WEATHER  •  USA",
+                    ["THANKSGIVING STORM", "BATTERS EAST COAST"],
+                    "Gusts of 50–60 mph in New York; 70 million under wind "
+                    "alerts; rain and floods from Wilmington to Boston.",
+                    draw_storm_panel),
+        lead_column(s, col2, "DEFENCE  •  BRITAIN",
+                    ["BRITAIN CALLS UP", "ITS VETERANS"],
+                    "MoD writes to about 100,000 reservists as Russia "
+                    "tensions rise. Kushner: Europe has no Ukraine plan.",
+                    draw_letter_panel),
+    )
+    s.y = bottom + 5
+    s.hline(1)
+    s.gap(5)
+
+    # ---------------------------------------------------------- markets
+    pen.text((SIDE, s.y), "THE MARKETS — WEDNESDAY'S CLOSE, IN THURSDAY'S WRAPS",
+             font=face(SANS_B, 13), fill=BLACK)
+    s.gap(16)
+    seg = BODY_W // 4
+    for i, (name, val) in enumerate(MARKETS):
+        cx = SIDE + (i % 4) * seg
+        cy = s.y + (i // 4) * 16
+        kf = face(SANS_B, 12)
+        pen.text((cx, cy), f"{name} ", font=kf, fill=CRIMSON)
+        pen.text((cx + pen.textlength(f"{name} ", font=kf), cy), val,
+                 font=face(SANS_R, 12), fill=BLACK)
+    s.gap(34)
+    pen.text((SIDE, s.y),
+             "Dow erased a 1,100-point fall; Nasdaq was −4.6% at its worst. Q3 GDP +4.3%; core PCE +0.3%. US markets shut today.",
+             font=face(SANS_R, 11), fill=SLATE)
+    s.gap(13)
+    s.hline(1)
+    s.gap(5)
+
+    # ---------------------------------------------------------- ten more
+    pen.text((SIDE, s.y), "MORE OF THE DAY", font=face(SANS_B, 14), fill=BLACK)
+    s.gap(18)
+    for i, item in enumerate(SECONDARY):
+        sx = SIDE + (i % 2) * (HALF_W + 24)
+        sy = s.y + (i // 2) * 19
+        nf = face(SANS_B, 13)
+        num = str(i + 4)
+        pen.text((sx, sy), num, font=nf, fill=CRIMSON)
+        nx = sx + pen.textlength(num + "  ", font=nf)
+        for ln in flow_lines(item, face(SANS_R, 12), HALF_W - (nx - sx)):
+            pen.text((nx, sy), ln, font=face(SANS_R, 12), fill=BLACK)
+            sy += 14
+    s.gap(5 * 19 + 1)
+    s.hline(1)
+    s.gap(5)
+
+    # ---------------------------------------------------------- world map
+    pen.text((SIDE, s.y), "ON THE MAP", font=face(SANS_B, 14), fill=BLACK)
+    s.gap(17)
+    mx0, my0 = SIDE, s.y
+    mx1, my1 = SHEET_W - SIDE, s.y + 62
+    pen.rectangle([mx0, my0, mx1, my1], fill=OCEAN, outline=BLACK, width=1)
+    ys = (my1 - my0) / 76.0
+
+    def blob(cx, cy, rx, ry):
+        pen.ellipse([mx0 + cx - rx, my0 + cy * ys - ry,
+                     mx0 + cx + rx, my0 + cy * ys + ry], fill=FIELD)
+
+    blob(120, 24, 100, 18)  # North America, west
+    blob(215, 28, 75, 16)   # North America, east
+    blob(300, 52, 40, 18)   # South America, north
+    blob(310, 66, 28, 14)   # South America, south
+    blob(486, 15, 40, 10)   # Europe
+    blob(498, 42, 32, 15)   # Africa, north
+    blob(505, 56, 24, 10)   # Africa, south
+    blob(640, 15, 105, 13)  # Asia, north
+    blob(715, 30, 75, 11)   # Asia, south
+    blob(795, 60, 34, 8)    # Australia
+    for gx in range(mx0 + 80, mx1, 80):
+        pen.line([(gx, my0), (gx, my1)], fill=(200, 212, 220), width=1)
+    for gy in range(my0 + 21, my1, 21):
+        pen.line([(mx0, gy), (mx1, gy)], fill=(200, 212, 220), width=1)
+    for pin in PINS:
+        px, py = mx0 + pin["x"], my0 + pin["y"] * ys
+        pen.ellipse([px - 9, py - 9, px + 9, py + 9], fill=CRIMSON,
+                    outline=(255, 255, 255), width=2)
+        tf = face(SANS_B, 10)
+        pen.text((px - pen.textlength(pin["n"], font=tf) / 2, py - 6),
+                 pin["n"], font=tf, fill=(255, 255, 255))
+    s.y = my1 + 3
+    key = "  ".join(f"{p['n']} {p['place']}" for p in PINS)
+    pen.text((SIDE, s.y), key, font=face(SANS_R, 11), fill=SLATE)
+    s.gap(12)
+    s.hline(1)
+    s.gap(5)
+
+    # ---------------------------------------------------------- briefs
+    pen.text((SIDE, s.y), "ALSO ON 26 NOVEMBER", font=face(SANS_B, 14),
+             fill=BLACK)
+    s.gap(16)
+    bf = face(SANS_R, 11)
+    for i, item in enumerate(BRIEFS):
+        bx = SIDE + (i % 2) * (HALF_W + 24)
+        by = s.y + (i // 2) * 12
+        pen.text((bx, by), "▪", font=bf, fill=CRIMSON)
+        pen.text((bx + 12, by), item, font=bf, fill=BLACK)
+    s.gap(11 * 12 + 1)
+    s.hline(1)
+    s.gap(5)
+
+    # ---------------------------------------------------------- date check
+    box_top = s.y
+    box_h = 78
+    pen.rectangle([SIDE, box_top, SHEET_W - SIDE, box_top + box_h],
+                  fill=(238, 230, 214), outline=CRIMSON, width=2)
+    pen.text((SIDE + 10, box_top + 5),
+             "DATE CHECK — BIG STORIES THAT ARE NOT 26 NOVEMBER",
+             font=face(SANS_B, 12), fill=CRIMSON)
+    dcf = face(SANS_R, 11)
+    for i, item in enumerate(DATECHECK):
+        bx = SIDE + 10 + (i % 2) * ((BODY_W - 20) // 2)
+        by = box_top + 22 + (i // 2) * 12
+        pen.text((bx, by), "✕  " + item, font=dcf, fill=BLACK)
+    s.y = box_top + box_h + 3
+    s.hline(1)
+    s.gap(4)
+
+    # ---------------------------------------------------------- footer
+    s.centred("THE WORLD TODAY  •  THURSDAY 26 NOVEMBER 2026  •  SOURCES: REUTERS, AP, BBC, TELEGRAPH, CHESS.COM",
+              SANS_B, 11, SLATE)
+    print("final y:", s.y, "canvas H:", SHEET_H)
+    assert s.y <= SHEET_H - 14, f"overflow: y={s.y} > {SHEET_H}"
+    s.canvas.save(OUTFILE, format="PNG", optimize=True)
+    print("saved", OUTFILE, s.canvas.size)
+
+
+if __name__ == "__main__":
+    build()
